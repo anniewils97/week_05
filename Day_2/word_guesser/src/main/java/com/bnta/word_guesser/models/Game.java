@@ -1,4 +1,4 @@
-package models;
+package com.bnta.word_guesser.models;
 
 public class Game {
     private String word;
