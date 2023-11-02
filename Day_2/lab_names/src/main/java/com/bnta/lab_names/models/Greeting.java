@@ -6,9 +6,6 @@ public class Greeting {
     private String name;
     private LocalTime timeOfDay;
 
-    //default constructor
-
-
 
     //my constructor
 
@@ -16,6 +13,8 @@ public class Greeting {
         this.name = name;
         this.timeOfDay = timeOfDay;
     }
+
+    //default constructor
 
     public Greeting() {
     }
