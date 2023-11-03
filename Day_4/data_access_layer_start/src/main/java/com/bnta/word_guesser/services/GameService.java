@@ -3,13 +3,21 @@ package com.bnta.word_guesser.services;
 import com.bnta.word_guesser.models.Game;
 import com.bnta.word_guesser.models.Guess;
 import com.bnta.word_guesser.models.Reply;
+import com.bnta.word_guesser.repositories.GameRepository;
+import org.apache.logging.log4j.util.Strings;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class GameService {
+
+    @Autowired
+    WordService wordService;
+
+    @Autowired
+    GameRepository gameRepository;
 
     private Game game;
     private String currentWord;
@@ -19,70 +27,107 @@ public class GameService {
     }
 
     public Reply startNewGame(){
-        this.game = new Game("hello");
-        this.currentWord = "*****";
-        this.guessedLetters = new ArrayList<>();
+//        Pick a random word from wordservice
+//        assign the random word to the new game
+//        modify the current word to reflect the random word's length
+        String targetWord = wordService.getRandomWord();
+        String currentWordStatus = Strings.repeat("*", targetWord.length());
+        Game game = new Game(targetWord, currentWordStatus);
+        gameRepository.save(game);
+//        this.currentWord = "*".repeat(targetWord.length());
         return new Reply(
-                this.currentWord,
+                game.getCurrentState(),
                 "Started new game",
                 false
         );
     }
 
-    public Reply processGuess(Guess guess){
+    public Reply processGuess(Guess guess, long id ){
         // create new Reply object
         Reply reply;
+        Optional<Game> optionalGame = getGameById(id);
 
         // Check if game has started
-        if (this.game == null) {
+        if (optionalGame.isEmpty()) {
             reply = new Reply(
-                    this.currentWord,
-                    String.format("Game has not been started"),
+                    null,
+                    String.format("Game not found"),
                     false);
             return reply;
         }
+        Game game = optionalGame.get();
+
+//        check if game is finished
+        if(game.isComplete()){
+            return new Reply(
+                    game.getCurrentState(),
+                    "Game already complete",
+                    false
+            );
+        }
+
+        incrementGuesses(game);
 
         // check if letter has already been guessed
-        if (this.guessedLetters.contains(guess.getLetter())) {
+        if (game.getCurrentState().contains(guess.getLetter())) {
             reply = new Reply(
-                    this.currentWord,
-                    String.format("Already guessed %s", guess.getLetter()
+                    game.getCurrentState(),
+                    String.format("Already found %s", guess.getLetter()
                     ), false);
             return reply;
         }
-
-        // add letter to previous guesses
-        this.guessedLetters.add(guess.getLetter());
-
-        // check for incorrect guess
+// check for incorrect guess
         if (!game.getWord().contains(guess.getLetter())) {
-            reply = new Reply(
-                    this.currentWord,
+            gameRepository.save(game);
+            return new Reply(
+                    game.getCurrentState(),
                     String.format("%s is not in the word", guess.getLetter()),
                     false
             );
-            return reply;
         }
+
 
         // process correct guess
         String runningResult = game.getWord();
 
+        // build list of previously guessed letters
+        List<String> guessedLetters = new ArrayList<>(Arrays.asList(
+                game.getCurrentState().split(""))
+        );
+
+        // remove * characters
+        guessedLetters.removeAll(Collections.singleton("\\*"));
+
+        // add current guess
+        guessedLetters.add(guess.getLetter());
+
+        // update current state of game
         for (Character letter : game.getWord().toCharArray()) {
-            if (!this.guessedLetters.contains(letter.toString())) {
+            if (!guessedLetters.contains(letter.toString())) {
                 runningResult = runningResult.replace(letter, '*');
             }
         }
 
-        this.currentWord = runningResult;
+        game.setCurrentState(runningResult);
 
-        reply = new Reply(
-                this.currentWord,
+        // check if game won
+        if (checkWinCondition(game)){
+            game.setComplete(true);
+            gameRepository.save(game);
+            return new Reply(
+                    game.getCurrentState(),
+                    "Congratulations, you win!",
+                    true
+            );
+        }
+
+        gameRepository.save(game);
+
+        return new Reply(
+                game.getCurrentState(),
                 String.format("%s is in the word", guess.getLetter()),
                 true
         );
-
-        // return result
-        return reply;
     }
 
     public Game getGame() {
@@ -108,4 +153,23 @@ public class GameService {
     public void setGuessedLetters(List<String> guessedLetters) {
         this.guessedLetters = guessedLetters;
     }
+
+
+    public Optional<Game> getGameById(long id){
+        return gameRepository.findById(id);
+    }
+
+    private boolean checkWinCondition(Game game){
+        String gameWord = game.getWord();
+        String gameState = game.getCurrentState();
+        return gameWord.equals(gameState);
+    }
+
+    private void incrementGuesses(Game game){
+        game.setGuesses(game.getGuesses() + 1);
+    }
+
+
+
+
 }

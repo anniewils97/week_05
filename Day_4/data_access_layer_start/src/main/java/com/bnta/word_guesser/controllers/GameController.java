@@ -21,8 +21,8 @@ public class GameController {
         return new ResponseEntity<>(reply, HttpStatus.CREATED);
     }
 
-    @GetMapping
-    public ResponseEntity<Reply> getGameStatus(){
+    @GetMapping(value = "/{id}")
+    public ResponseEntity<Reply> getGameStatus(@PathVariable long id){
         Reply reply;
 
         if (gameService.getGame() == null){
